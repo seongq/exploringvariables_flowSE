@@ -35,10 +35,11 @@ if __name__ == '__main__':
     
     parser.add_argument("--test_dir")
     parser.add_argument("--ckpt", type=str, help='Path to model checkpoint.')
-    parser.add_argument("--int_list", type=int, nargs='+', help="List of integers")
+    parser.add_argument("--N", type=int)
 
 
     args = parser.parse_args()
+    N = args.N
 
     clean_dir = join(args.test_dir, "test", "clean")
     noisy_dir = join(args.test_dir, "test", "noisy")
@@ -46,28 +47,24 @@ if __name__ == '__main__':
     
     
     checkpoint_file = args.ckpt
-    int_list = "_".join(map(str, args.int_list))
+    # int_list = "_".join(map(str, args.int_list))
     # raise("target_dir 부터 확인해")
     
 
     # Settings
     sr = 16000
-    print(args.int_list)
+    # print(args.int_list)
     odesolver = args.odesolver
-    int_list = args.int_list
+    # int_list = args.int_list
     
     
     # Load score model
-    try:
-        model = VFModel.load_from_checkpoint(
-            checkpoint_file, base_dir="",
-            batch_size=8, num_workers=4, kwargs=dict(gpu=False)
-        )
-    except:
-        model = VFModel_SGMSE_CRP.load_from_checkpoint(
-            checkpoint_file, base_dir="", batch_size=8, num_workers=4, kwargs=dict(gpu=False)
-        )
-    int_list_str = "_".join(map(str, args.int_list))
+
+    model = VFModel.load_from_checkpoint(
+        checkpoint_file, base_dir="",
+        batch_size=8, num_workers=4, kwargs=dict(gpu=False)
+    )
+
     import re
 
     def extract_epoch(checkpoint_file):
@@ -86,12 +83,12 @@ if __name__ == '__main__':
     else:
         print("No match found")
     epoch_number = extract_epoch(checkpoint_file)
-    target_dir = f"/workspace/results/clean_KD/{dataset_name}_mode_{mode_value}_epoch_{epoch_number}_{int_list_str}/"
+    target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{mode_value}_epoch_{epoch_number}_evaluationnumber_{N}/"
     results_candidate_path = os.path.join(target_dir, "_avg_results.txt")
     if os.path.exists(results_candidate_path):  # 파일 존재 여부 확인
         print(f"파일이 존재하므로 프로그램을 종료합니다: {results_candidate_path}")
         sys.exit()  # 프로그램 종료
-    print("evaluation sijak")
+    # print("evaluation sijak")
     ensure_dir(target_dir + "files/")
     reverse_starting_point = args.reverse_starting_point
     reverse_end_point = args.reverse_end_point
@@ -104,7 +101,6 @@ if __name__ == '__main__':
 
     noisy_files = sorted(glob.glob('{}/*.wav'.format(noisy_dir)))
     
-
 
 
 
@@ -129,31 +125,20 @@ if __name__ == '__main__':
         Y = pad_spec(Y)
         Y = Y.cuda()
         with torch.no_grad():
-            for i in range(len(int_list)):
-                N = int_list[i]
-                if N==0:
-                    continue
-                if i == 0:
-                    xt, _ = model.ode.prior_sampling(Y.shape, Y)
-                    CONDITION = Y
-                    ENHANCED = Y
+            
+            xt, _ = model.ode.prior_sampling(Y.shape, Y)
+            CONDITION = Y
+
+            xt = xt.to(Y.device)
+            timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
+            for i in range(len(timesteps)):
+                t = timesteps[i]
+                if i == len(timesteps)-1:
+                    dt = 0-t
                 else:
-                    ENHANCED = xt
-                    xt, _ = model.ode.prior_sampling(Y.shape,ENHANCED)
-                   
-                    CONDITION = ENHANCED
-                   
-                    
-                xt = xt.to(Y.device)
-                timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
-                for i in range(len(timesteps)):
-                    t = timesteps[i]
-                    if i == len(timesteps)-1:
-                        dt = 0-t
-                    else:
-                        dt = timesteps[i+1]-t
-                    vect = torch.ones(Y.shape[0], device=Y.device)*t
-                    xt = xt + dt * model(xt, vect, ENHANCED, CONDITION)            
+                    dt = timesteps[i+1]-t
+                vect = torch.ones(Y.shape[0], device=Y.device)*t
+                xt = xt + dt * model(xt, vect, CONDITION)            
                 
         
         sample = xt.clone()
@@ -216,6 +201,6 @@ if __name__ == '__main__':
         
         file.write("data: {}\n".format(args.test_dir))
         file.write("epoch: {}\n".format(epoch_number))
-        file.write("evaluationnumbers: {}\n".format(int_list_str))
-        file.write("mode: {}\n".format(model.mode_condition))
+        # file.write("evaluationnumbers: {}\n".format(int_list_str))
+        # file.write("mode: {}\n".format(model.mode_condition))
         

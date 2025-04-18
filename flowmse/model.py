@@ -50,7 +50,7 @@ class VFModel(pl.LightningModule):
         super().__init__()
         # Initialize Backbone DNN
         self.mode_ = mode_
-        if self.mode_ == mode_:
+        if self.mode_ == "noisemean_conditionfalse_timefalse":
             kwargs.update(num_channels=2)
             kwargs.update(conditional=False)
         dnn_cls = BackboneRegistry.get_by_name(backbone)
@@ -139,7 +139,7 @@ class VFModel(pl.LightningModule):
     def _step(self, batch, batch_idx):
         import random
         x0, y = batch
-        rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * (self.T_rev - self.t_eps) + self.t_eps        
+        rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * (self.T_rev-self.t_eps) +self.t_eps
         t = torch.min(rdm, torch.tensor(self.T_rev))
         mean, std = self.ode.marginal_prob(x0, t, y)
         z = torch.randn_like(x0)  #
@@ -148,26 +148,9 @@ class VFModel(pl.LightningModule):
         der_std = self.ode.der_std(t)
         der_mean = self.ode.der_mean(x0,t,y)
         condVF = der_std * z + der_mean    
-        VECTORFIELD_origin = self(xt,t,y) #condition 없을때
+        VECTORFIELD_origin = self(xt,t,y) 
         loss_original_flow = self._loss(VECTORFIELD_origin,condVF)
-        # with torch.no_grad():
-        #     if self.mode_condition == "cc":
-        #         VECTORFIELD_CLEAN =  self(xt,t,x0,x0)
-        #     elif self.mode_condition == "cn":
-        #         VECTORFIELD_CLEAN =  self(xt,t,x0,y)
-        #     elif self.mode_condition == "nc":
-        #         VECTORFIELD_CLEAN =  self(xt,t,y,x0)
-        #     elif self.mode_condition == "random":
-        #         choices = ["cc", "cn","nc"]
-        #         selected = random.choice(choices)
-        #         if self.mode_condition == "cc":
-        #             VECTORFIELD_CLEAN =  self(xt,t,x0,x0)
-        #         elif self.mode_condition == "cn":
-        #             VECTORFIELD_CLEAN =  self(xt,t,x0,y)
-        #         elif self.mode_condition == "nc":
-        #             VECTORFIELD_CLEAN =  self(xt,t,y,x0)  
-            
-        # loss_kd = self._loss(VECTORFIELD_CLEAN, VECTORFIELD_origin)
+
         loss = loss_original_flow 
         return loss
     
