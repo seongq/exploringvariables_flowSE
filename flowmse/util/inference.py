@@ -24,7 +24,7 @@ def evaluate_model(model, num_eval_files, inference_N=5):
     indices = torch.linspace(0, total_num_files-1, num_eval_files, dtype=torch.int)
     clean_files = list(clean_files[i] for i in indices)
     noisy_files = list(noisy_files[i] for i in indices)
-
+    mdoe_ = model.mode_
     try:
         if model.inference_N:
             inference_N = model.inference_N
@@ -60,8 +60,9 @@ def evaluate_model(model, num_eval_files, inference_N=5):
                 stepsize = timesteps[-1]
                 
             vec_t = torch.ones(Y.shape[0], device=Y.device) * t
-            dt = -stepsize    
-            xt = xt + dt * model(xt, vec_t, Y)
+            dt = -stepsize 
+            if mode_ == "noisemean_conditionfalse_timefalse":   
+                xt = xt + dt * model(vec_t,xt)
             
             
         sample = xt

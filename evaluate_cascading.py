@@ -83,7 +83,7 @@ if __name__ == '__main__':
     else:
         print("No match found")
     epoch_number = extract_epoch(checkpoint_file)
-    target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{mode_value}_epoch_{epoch_number}_evaluationnumber_{N}/"
+    target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{model.mode_}_epoch_{epoch_number}_evaluationnumber_{N}/"
     results_candidate_path = os.path.join(target_dir, "_avg_results.txt")
     if os.path.exists(results_candidate_path):  # 파일 존재 여부 확인
         print(f"파일이 존재하므로 프로그램을 종료합니다: {results_candidate_path}")
@@ -92,9 +92,10 @@ if __name__ == '__main__':
     ensure_dir(target_dir + "files/")
     reverse_starting_point = args.reverse_starting_point
     reverse_end_point = args.reverse_end_point
-        
+    
     model.ode.T_rev = reverse_starting_point
-        
+    
+    mode_ = model.mode_    
     
     model.eval(no_ema=False)
     model.cuda()
@@ -127,7 +128,6 @@ if __name__ == '__main__':
         with torch.no_grad():
             
             xt, _ = model.ode.prior_sampling(Y.shape, Y)
-            CONDITION = Y
 
             xt = xt.to(Y.device)
             timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
@@ -138,7 +138,8 @@ if __name__ == '__main__':
                 else:
                     dt = timesteps[i+1]-t
                 vect = torch.ones(Y.shape[0], device=Y.device)*t
-                xt = xt + dt * model(xt, vect, CONDITION)            
+                if mode_ == "noisemean_conditionfalse_timefalse":
+                    xt = xt + dt * model(vect, xt)     
                 
         
         sample = xt.clone()
@@ -202,5 +203,5 @@ if __name__ == '__main__':
         file.write("data: {}\n".format(args.test_dir))
         file.write("epoch: {}\n".format(epoch_number))
         # file.write("evaluationnumbers: {}\n".format(int_list_str))
-        # file.write("mode: {}\n".format(model.mode_condition))
+        file.write("mode: {}\n".format(model.mode_))
         

@@ -147,8 +147,9 @@ class VFModel(pl.LightningModule):
         xt = mean + sigmas * z
         der_std = self.ode.der_std(t)
         der_mean = self.ode.der_mean(x0,t,y)
-        condVF = der_std * z + der_mean    
-        VECTORFIELD_origin = self(xt,t,y) 
+        condVF = der_std * z + der_mean
+        if self.mode_ == "noisemean_conditionfalse_timefalse":
+            VECTORFIELD_origin = self(t,xt) 
         loss_original_flow = self._loss(VECTORFIELD_origin,condVF)
 
         loss = loss_original_flow 
@@ -172,9 +173,9 @@ class VFModel(pl.LightningModule):
 
         return loss
 
-    def forward(self, x, t, y):
+    def forward(self,t, *args):
         # Concatenate y as an extra channel
-        dnn_input = torch.cat([x, y], dim=1)
+        dnn_input = torch.cat(args, dim=1)
         
         # the minus is most likely unimportant here - taken from Song's repo
         score = -self.dnn(dnn_input, t)
