@@ -29,8 +29,13 @@ class VFModel(pl.LightningModule):
         parser.add_argument("--num_eval_files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training. Pass 0 to turn off (no checkpoints based on evaluation metrics will be generated).")
         parser.add_argument("--loss_type", type=str, default="mse", help="The type of loss function to use.")
         parser.add_argument("--loss_abs_exponent", type=float, default= 0.5,  help="magnitude transformation in the loss term")
-        parser.add_argument("--mode_", type=str, required=True, choices=("noisemean_conditionfalse_timefalse"))
+        parser.add_argument("--mode_", type=str, required=True, choices=("noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse"))
         return parser
+    """mode_
+    noisemean_conditionfalse_timefalse : v_theta(x_t)
+    noisemean_noxt_conditiony_timefalse : v_theta(y)
+    noisemean_noxt_conditionyplusnoise_timefalse : v_theta(y+sigma z)
+    """
 
     def __init__(
         self, backbone, ode, lr=1e-4, ema_decay=0.999, t_eps=0.03, T_rev = 1.0,  loss_abs_exponent=0.5, 
@@ -51,6 +56,9 @@ class VFModel(pl.LightningModule):
         # Initialize Backbone DNN
         self.mode_ = mode_
         if self.mode_ == "noisemean_conditionfalse_timefalse":
+            kwargs.update(num_channels=2)
+            kwargs.update(conditional=False)
+        elif self.mode_ == "noisemean_noxt_conditiony_timefalse":
             kwargs.update(num_channels=2)
             kwargs.update(conditional=False)
         dnn_cls = BackboneRegistry.get_by_name(backbone)
@@ -150,6 +158,8 @@ class VFModel(pl.LightningModule):
         condVF = der_std * z + der_mean
         if self.mode_ == "noisemean_conditionfalse_timefalse":
             VECTORFIELD_origin = self(t,xt) 
+        elif self.mode_ == "noisemean_noxt_conditiony_timefalse":
+            VECTORFIELD_origin = self(t,y)
         loss_original_flow = self._loss(VECTORFIELD_origin,condVF)
 
         loss = loss_original_flow 

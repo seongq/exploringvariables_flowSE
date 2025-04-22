@@ -1,34 +1,39 @@
 import subprocess
 import os
 import re
+import random
 # 체크포인트 파일들이 있는 폴더 경로
-ckpt_folders= ["/workspace/general_cascading/logs/dataset_WSJ0-CHiME3_low_snr_mode_cn_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_fyag1byg"]
+time_steps = ['uniform', 'gerkmann']
+gpu = input("gpu 0 or 1")
+while True:
+    ckpt_folders= ["/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_x7lhaqt6"]
+    random.shuffle(ckpt_folders)
+    for ckpt_folder in ckpt_folders:
+        # 정규표현식으로 dataset 이름 추출
+        match = re.search(r"dataset_(.*?)_sigma", ckpt_folder)
+        if match:
+            dataset_name = match.group(1)
+            print(f"Extracted dataset name: {dataset_name}")
+        else:
+            print("Dataset name not found in the path.")
 
-for ckpt_folder in ckpt_folders:
-    # 정규표현식으로 dataset 이름 추출
-    match = re.search(r"dataset_(.*?)_mode", ckpt_folder)
-    if match:
-        dataset_name = match.group(1)
-        print(f"Extracted dataset name: {dataset_name}")
-    else:
-        print("Dataset name not found in the path.")
+        test_dir = f"/workspace/datasets/{dataset_name}"
+        int_lists = ["1", "2", "3", "4", "5", "6", "7","8","9","10"] # int_list 값들
+        random.shuffle(int_lists)
+        # ckpt 폴더에서 모든 .ckpt 파일 찾기
+        ckpt_files = sorted([f for f in os.listdir(ckpt_folder) if f.endswith(".ckpt")])
+        random.shuffle(ckpt_files)
+        # 실행할 명령어 생성 및 실행
+        for ckpt_file in ckpt_files:
+            ckpt_path = os.path.join(ckpt_folder, ckpt_file)
 
-    test_dir = f"/workspace/database/{dataset_name}"
-    int_lists = ["1", "2", "3", "4", "5", "6", "7","8","9","10"] # int_list 값들
+            for N in int_lists:
+                for time_step_type in time_steps:
+                    cmd = f"CUDA_VISIBLE_DEVICES={gpu} python evaluate_cascading.py --ckpt {ckpt_path} --test_dir {test_dir} --N {N} --time_step_type {time_step_type}"
+                    print(f"Executing: {cmd}")
+                    
+                    process = subprocess.run(cmd, shell=True)
 
-    # ckpt 폴더에서 모든 .ckpt 파일 찾기
-    ckpt_files = sorted([f for f in os.listdir(ckpt_folder) if f.endswith(".ckpt")])
-
-    # 실행할 명령어 생성 및 실행
-    for ckpt_file in ckpt_files:
-        ckpt_path = os.path.join(ckpt_folder, ckpt_file)
-
-        for int_list in int_lists:
-            cmd = f"CUDA_VISIBLE_DEVICES=5 python evaluate_cascading.py --ckpt {ckpt_path} --test_dir {test_dir} --int_list {int_list}"
-            print(f"Executing: {cmd}")
-            
-            process = subprocess.run(cmd, shell=True)
-
-            if process.returncode != 0:
-                print(f"Command failed: {cmd}")
-                break  # 실패 시에만 반복 종료
+                    if process.returncode != 0:
+                        print(f"Command failed: {cmd}")
+                        break  # 실패 시에만 반복 종료

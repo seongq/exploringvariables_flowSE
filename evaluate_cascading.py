@@ -36,10 +36,12 @@ if __name__ == '__main__':
     parser.add_argument("--test_dir")
     parser.add_argument("--ckpt", type=str, help='Path to model checkpoint.')
     parser.add_argument("--N", type=int)
+    parser.add_argument("--time_step_type", type=str, choices=('gerkmann', 'uniform'), default="gerkmann")
 
 
     args = parser.parse_args()
     N = args.N
+    time_step_type = args.time_step_type
 
     clean_dir = join(args.test_dir, "test", "clean")
     noisy_dir = join(args.test_dir, "test", "noisy")
@@ -83,7 +85,7 @@ if __name__ == '__main__':
     else:
         print("No match found")
     epoch_number = extract_epoch(checkpoint_file)
-    target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{model.mode_}_epoch_{epoch_number}_evaluationnumber_{N}/"
+    target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{model.mode_}_epoch_{epoch_number}_timestep_{time_step_type}_evaluationnumber_{N}/"
     results_candidate_path = os.path.join(target_dir, "_avg_results.txt")
     if os.path.exists(results_candidate_path):  # 파일 존재 여부 확인
         print(f"파일이 존재하므로 프로그램을 종료합니다: {results_candidate_path}")
@@ -130,7 +132,10 @@ if __name__ == '__main__':
             xt, _ = model.ode.prior_sampling(Y.shape, Y)
 
             xt = xt.to(Y.device)
-            timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
+            if time_step_type=="gerkmann":
+                timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
+            elif time_step_type=="uniform":
+                timesteps = torch.linspace(1, 1/N, N, device=Y.device)
             for i in range(len(timesteps)):
                 t = timesteps[i]
                 if i == len(timesteps)-1:
@@ -140,6 +145,8 @@ if __name__ == '__main__':
                 vect = torch.ones(Y.shape[0], device=Y.device)*t
                 if mode_ == "noisemean_conditionfalse_timefalse":
                     xt = xt + dt * model(vect, xt)     
+                elif mode == "noisemean_noxt_conditiony_timefalse":
+                    xt = xt+dt*model(vect,Y)
                 
         
         sample = xt.clone()
@@ -204,4 +211,5 @@ if __name__ == '__main__':
         file.write("epoch: {}\n".format(epoch_number))
         # file.write("evaluationnumbers: {}\n".format(int_list_str))
         file.write("mode: {}\n".format(model.mode_))
+        file.write('time_step: {}\n'.format(time_step_type))
         
