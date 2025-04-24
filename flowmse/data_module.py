@@ -207,13 +207,13 @@ class SpecsDataModule(pl.LightningDataModule):
     def train_dataloader(self):
         return DataLoader(
             self.train_set, batch_size=self.batch_size,
-            num_workers=self.num_workers, pin_memory=self.gpu, shuffle=True
+            num_workers=self.num_workers, pin_memory=self.gpu, shuffle=True, persistent_workers=True
         )
 
     def val_dataloader(self):
         return DataLoader(
             self.valid_set, batch_size=self.batch_size,
-            num_workers=self.num_workers, pin_memory=self.gpu, shuffle=False
+            num_workers=self.num_workers, pin_memory=self.gpu, shuffle=False, persistent_workers=True
         )
 
     def test_dataloader(self):

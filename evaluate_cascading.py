@@ -22,8 +22,7 @@ from flowmse.sampling import get_white_box_solver
 from utils import energy_ratios, ensure_dir, print_mean_std
 
 import pdb
-torch.set_num_threads(5)
-torch.cuda.empty_cache()
+
 if __name__ == '__main__':
     parser = ArgumentParser()
    
@@ -129,8 +128,9 @@ if __name__ == '__main__':
         Y = Y.cuda()
         with torch.no_grad():
             
-            xt, _ = model.ode.prior_sampling(Y.shape, Y)
-
+            xt, z = model.ode.prior_sampling(Y.shape, Y)
+            sigma = model.ode._std(1)
+            Y_plus_sigma_z = Y+sigma *z
             xt = xt.to(Y.device)
             if time_step_type=="gerkmann":
                 timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
@@ -145,8 +145,10 @@ if __name__ == '__main__':
                 vect = torch.ones(Y.shape[0], device=Y.device)*t
                 if mode_ == "noisemean_conditionfalse_timefalse":
                     xt = xt + dt * model(vect, xt)     
-                elif mode == "noisemean_noxt_conditiony_timefalse":
+                elif mode_ == "noisemean_noxt_conditiony_timefalse":
                     xt = xt+dt*model(vect,Y)
+                elif mode_ == "noisemean_y_plus_sigmaz":
+                    xt = xt+dt*model(vect,Y_plus_sigma_z)
                 
         
         sample = xt.clone()

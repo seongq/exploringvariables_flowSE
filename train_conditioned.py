@@ -16,8 +16,8 @@ from flowmse.odes import ODERegistry
 from flowmse.model import VFModel
 
 import torch
-torch.set_num_threads(5)
-torch.cuda.empty_cache()
+# torch.set_num_threads(5)
+# torch.cuda.empty_cache()
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 def get_argparse_groups(parser):
      groups = {}
@@ -86,12 +86,13 @@ if __name__ == '__main__':
 
      checkpoint_callback_last = ModelCheckpoint(dirpath=model_dirpath,
           save_last=True, filename='{epoch}-last')
-     checkpoint_callback_pesq = ModelCheckpoint(dirpath=model_dirpath,          save_top_k=1000, monitor="pesq", mode="max", filename='{epoch}-{pesq:.2f}')
-     checkpoint_callback_valid_loss = ModelCheckpoint(dirpath=model_dirpath,  save_top_k=0, monitor="valid_loss", mode="min", filename='{epoch}-{valid_loss:.2f}')
-     checkpoint_callback_si_sdr = ModelCheckpoint(dirpath=model_dirpath, save_top_k=0, monitor="si_sdr", mode="max", filename='{epoch}-{si_sdr:.2f}')
+     checkpoint_callback_pesq = ModelCheckpoint(dirpath=model_dirpath,          save_top_k=100, monitor="pesq", mode="max", filename='{epoch}-{pesq:.2f}')
+     checkpoint_callback_valid_loss = ModelCheckpoint(dirpath=model_dirpath,  save_top_k=100, monitor="valid_loss", mode="min", filename='{epoch}-{valid_loss:.2f}')
+     checkpoint_callback_si_sdr = ModelCheckpoint(dirpath=model_dirpath, save_top_k=100, monitor="si_sdr", mode="max", filename='{epoch}-{si_sdr:.2f}')
+     checkpoint_callback_estoi = ModelCheckpoint(dirpath=model_dirpath,          save_top_k=100, monitor="estoi", mode="max", filename='{epoch}-{estoi:.2f}')
 
      early_stopping_callback = EarlyStopping(monitor="valid_loss",patience=1000, mode="min",verbose=True)
-     callbacks = [checkpoint_callback_valid_loss, checkpoint_callback_pesq, early_stopping_callback, checkpoint_callback_last, checkpoint_callback_si_sdr]
+     callbacks = [checkpoint_callback_estoi, checkpoint_callback_valid_loss, checkpoint_callback_pesq, early_stopping_callback, checkpoint_callback_last, checkpoint_callback_si_sdr]
 
      # Initialize the Trainer and the DataModule
      trainer = pl.Trainer.from_argparse_args(

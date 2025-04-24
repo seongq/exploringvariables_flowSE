@@ -29,12 +29,21 @@ class VFModel(pl.LightningModule):
         parser.add_argument("--num_eval_files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training. Pass 0 to turn off (no checkpoints based on evaluation metrics will be generated).")
         parser.add_argument("--loss_type", type=str, default="mse", help="The type of loss function to use.")
         parser.add_argument("--loss_abs_exponent", type=float, default= 0.5,  help="magnitude transformation in the loss term")
-        parser.add_argument("--mode_", type=str, required=True, choices=("noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse"))
+        parser.add_argument("--mode_", type=str, required=True, choices=("noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse","noisemean_y_plus_sigmaz","noisemean_xt_t"))
         return parser
-    """mode_
+    """
+    model.step, inference, evaluation code 바꿀것
+    mode_
     noisemean_conditionfalse_timefalse : v_theta(x_t)
     noisemean_noxt_conditiony_timefalse : v_theta(y)
-    noisemean_noxt_conditionyplusnoise_timefalse : v_theta(y+sigma z)
+    noisemean_y_plus_sigmaz : v_theta(y+sigma z)
+    noisemean_xt_t: v_theta(xt,t)
+    noisemean_xt_t_timetrue: v_theta(xt,t)
+    noisemean_xt_ysigmaz_timefalse: v_theta(xt,y+sigma z)
+    noisemean_y_timetrue: v_theta(y,t)
+    noisemean_ysigmaz_timetrue: v_theta(y+sigmaz, t)
+    noisemean_y_sigmaz_timefalse: v_theta(y, sigma z)
+    noisemean_y_s: v_theta((1-t)s, ty)
     """
 
     def __init__(
@@ -61,6 +70,12 @@ class VFModel(pl.LightningModule):
         elif self.mode_ == "noisemean_noxt_conditiony_timefalse":
             kwargs.update(num_channels=2)
             kwargs.update(conditional=False)
+        elif self.mode_ == "noisemean_y_plus_sigmaz":
+            kwargs.update(num_channels=2)
+            kwargs.update(conditional=False)            
+        elif self.mode_ == "noisemean_xt_t": #noisemean_xt_t: v_theta(xt,t)
+            kwargs.update(num_channels=2)
+            kwargs.update(conditional=True)
         dnn_cls = BackboneRegistry.get_by_name(backbone)
         self.dnn = dnn_cls(**kwargs)        
         ode_cls = ODERegistry.get_by_name(ode)
@@ -160,6 +175,8 @@ class VFModel(pl.LightningModule):
             VECTORFIELD_origin = self(t,xt) 
         elif self.mode_ == "noisemean_noxt_conditiony_timefalse":
             VECTORFIELD_origin = self(t,y)
+        elif self.mode_ == "noisemean_y_plus_sigmaz":
+            VECTORFIELD_origin = self(t,y+sigmas * z)
         loss_original_flow = self._loss(VECTORFIELD_origin,condVF)
 
         loss = loss_original_flow 

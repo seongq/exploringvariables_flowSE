@@ -47,9 +47,9 @@ def evaluate_model(model, num_eval_files, inference_N=5):
         # Prepare DNN input
         Y = torch.unsqueeze(model._forward_transform(model._stft(y.cuda())), 0)
         Y = pad_spec(Y)
-        x1 ,_= model.ode.prior_sampling(Y.shape,Y)
-        
-        
+        x1 ,z= model.ode.prior_sampling(Y.shape,Y)
+        sigma = model.ode._std(1)
+        Y_plus_sigma_z = Y+sigma *z
         xt = x1
         timesteps = torch.linspace(T_rev, t_eps, N, device=Y.device)
         for i in range(len(timesteps)):
@@ -65,6 +65,8 @@ def evaluate_model(model, num_eval_files, inference_N=5):
                 xt = xt + dt * model(vec_t,xt)
             elif mode_ == "noisemean_noxt_conditiony_timefalse":
                 xt = xt + dt * model(vec_t , Y)
+            elif mode_ == "noisemean_y_plus_sigmaz":
+                xt = xt + dt * model(vec_t , Y_plus_sigma_z)
             
             
         sample = xt

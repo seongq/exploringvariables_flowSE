@@ -6,8 +6,8 @@ import random
 time_steps = ['uniform', 'gerkmann']
 gpu = input("gpu 0 or 1")
 while True:
-    ckpt_folders= ["/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_x7lhaqt6"]
-    random.shuffle(ckpt_folders)
+    ckpt_folders= ["/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_uz6yw8ox", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_8r536q1p", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_8r536q1p","/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_x7lhaqt6", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_plmzd2xl", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_ogp7nxna", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_26tu468l"]
+    # random.shuffle(ckpt_folders)
     for ckpt_folder in ckpt_folders:
         # 정규표현식으로 dataset 이름 추출
         match = re.search(r"dataset_(.*?)_sigma", ckpt_folder)
@@ -18,7 +18,7 @@ while True:
             print("Dataset name not found in the path.")
 
         test_dir = f"/workspace/datasets/{dataset_name}"
-        int_lists = ["1", "2", "3", "4", "5", "6", "7","8","9","10"] # int_list 값들
+        int_lists = ["1","2", "3", "4", "5", "6", "7", "8", "9", "10"] # int_list 값들
         random.shuffle(int_lists)
         # ckpt 폴더에서 모든 .ckpt 파일 찾기
         ckpt_files = sorted([f for f in os.listdir(ckpt_folder) if f.endswith(".ckpt")])
