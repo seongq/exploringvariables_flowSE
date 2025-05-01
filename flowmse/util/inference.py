@@ -59,15 +59,20 @@ def evaluate_model(model, num_eval_files, inference_N=5):
             else:
                 stepsize = timesteps[-1]
                 
-            vec_t = torch.ones(Y.shape[0], device=Y.device) * t
+            vect = torch.ones(Y.shape[0], device=Y.device) * t
             dt = -stepsize 
             if mode_ == "noisemean_conditionfalse_timefalse":   
-                xt = xt + dt * model(vec_t,xt)
+                xt = xt + dt * model(vect,xt)
             elif mode_ == "noisemean_noxt_conditiony_timefalse":
-                xt = xt + dt * model(vec_t , Y)
+                xt = xt + dt * model(vect , Y)
             elif mode_ == "noisemean_y_plus_sigmaz":
-                xt = xt + dt * model(vec_t , Y_plus_sigma_z)
-            
+                xt = xt + dt * model(vect , Y_plus_sigma_z)
+            elif mode_ == "noisemean_xt_t": #noisemean_xt_t: v_theta(xt,t)
+                xt = xt + dt * model(vect, xt)
+            elif mode_ == "noisemean_xt_y": #noisemean_xt_y: v_theta(xt,y)
+                xt = xt + dt * model(vect, xt,Y)
+            elif mode_ == "noisemean_xt_y_plus_sigmaz": #v_theta(xt,y+sigma z)
+                xt = xt + dt * model(vect, xt, Y_plus_sigma_z)
             
         sample = xt
         

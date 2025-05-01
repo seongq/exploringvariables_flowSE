@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # 결과 출력
     if match:
         mode_value = match.group(1)
-        print(mode_value)
+        # print(mode_value)
     else:
         print("No match found")
     epoch_number = extract_epoch(checkpoint_file)
@@ -136,6 +136,8 @@ if __name__ == '__main__':
                 timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
             elif time_step_type=="uniform":
                 timesteps = torch.linspace(1, 1/N, N, device=Y.device)
+                
+            print("N, ", N)
             for i in range(len(timesteps)):
                 t = timesteps[i]
                 if i == len(timesteps)-1:
@@ -149,7 +151,12 @@ if __name__ == '__main__':
                     xt = xt+dt*model(vect,Y)
                 elif mode_ == "noisemean_y_plus_sigmaz":
                     xt = xt+dt*model(vect,Y_plus_sigma_z)
-                
+                elif mode_ == "noisemean_xt_t": #noisemean_xt_t: v_theta(xt,t)
+                    xt = xt + dt * model(vect, xt)
+                elif mode_ == "noisemean_xt_y": #noisemean_xt_y: v_theta(xt,y)
+                    xt = xt + dt * model(vect, xt,Y)
+                elif mode_ == "noisemean_xt_y_plus_sigmaz": #v_theta(xt,y+sigma z)
+                    xt = xt + dt * model(vect, xt, Y_plus_sigma_z)
         
         sample = xt.clone()
         

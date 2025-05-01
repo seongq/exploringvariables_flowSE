@@ -6,7 +6,7 @@ import random
 time_steps = ['uniform', 'gerkmann']
 gpu = input("gpu 0 or 1")
 while True:
-    ckpt_folders= ["/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_uz6yw8ox", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_8r536q1p", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_8r536q1p","/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_x7lhaqt6", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_plmzd2xl", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_ogp7nxna", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_26tu468l"]
+    ckpt_folders= ["/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_xt_y_plus_sigmaz_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_88u92bli", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_xt_y_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_qzyqjy43", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_xt_y_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_k5diz2ec", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_xt_y_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_08ekodcs", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_y_plus_sigmaz_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_nc7ndoya", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_y_plus_sigmaz_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_u4rxkp4i", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_y_plus_sigmaz_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_3tk6bbj0", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_uz6yw8ox", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_8r536q1p", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_noxt_conditiony_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_8r536q1p","/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_x7lhaqt6", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_plmzd2xl", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_ogp7nxna", "/workspace/flowse_condition_explor/flowse_KD_big/logs/mode_noisemean_conditionfalse_timefalse_dataset_VCTK_corpus_sigma_min_0.0_sigma_max_0.5_T_rev_1.0_t_eps_0.03_26tu468l"]
     # random.shuffle(ckpt_folders)
     for ckpt_folder in ckpt_folders:
         # 정규표현식으로 dataset 이름 추출
@@ -24,10 +24,11 @@ while True:
         ckpt_files = sorted([f for f in os.listdir(ckpt_folder) if f.endswith(".ckpt")])
         random.shuffle(ckpt_files)
         # 실행할 명령어 생성 및 실행
-        for ckpt_file in ckpt_files:
-            ckpt_path = os.path.join(ckpt_folder, ckpt_file)
+        for N in int_lists:
+            for ckpt_file in ckpt_files:
+                ckpt_path = os.path.join(ckpt_folder, ckpt_file)
 
-            for N in int_lists:
+           
                 for time_step_type in time_steps:
                     cmd = f"CUDA_VISIBLE_DEVICES={gpu} python evaluate_cascading.py --ckpt {ckpt_path} --test_dir {test_dir} --N {N} --time_step_type {time_step_type}"
                     print(f"Executing: {cmd}")
@@ -37,3 +38,5 @@ while True:
                     if process.returncode != 0:
                         print(f"Command failed: {cmd}")
                         break  # 실패 시에만 반복 종료
+                    
+                # random.shuffle(int_lists)

@@ -86,10 +86,10 @@ if __name__ == '__main__':
 
      checkpoint_callback_last = ModelCheckpoint(dirpath=model_dirpath,
           save_last=True, filename='{epoch}-last')
-     checkpoint_callback_pesq = ModelCheckpoint(dirpath=model_dirpath,          save_top_k=100, monitor="pesq", mode="max", filename='{epoch}-{pesq:.2f}')
-     checkpoint_callback_valid_loss = ModelCheckpoint(dirpath=model_dirpath,  save_top_k=100, monitor="valid_loss", mode="min", filename='{epoch}-{valid_loss:.2f}')
-     checkpoint_callback_si_sdr = ModelCheckpoint(dirpath=model_dirpath, save_top_k=100, monitor="si_sdr", mode="max", filename='{epoch}-{si_sdr:.2f}')
-     checkpoint_callback_estoi = ModelCheckpoint(dirpath=model_dirpath,          save_top_k=100, monitor="estoi", mode="max", filename='{epoch}-{estoi:.2f}')
+     checkpoint_callback_pesq = ModelCheckpoint(dirpath=model_dirpath,          save_top_k=10, monitor="pesq", mode="max", filename='{epoch}-{pesq:.2f}')
+     checkpoint_callback_valid_loss = ModelCheckpoint(dirpath=model_dirpath,  save_top_k=10, monitor="valid_loss", mode="min", filename='{epoch}-{valid_loss:.2f}')
+     checkpoint_callback_si_sdr = ModelCheckpoint(dirpath=model_dirpath, save_top_k=10, monitor="si_sdr", mode="max", filename='{epoch}-{si_sdr:.2f}')
+     checkpoint_callback_estoi = ModelCheckpoint(dirpath=model_dirpath,          save_top_k=10, monitor="estoi", mode="max", filename='{epoch}-{estoi:.2f}')
 
      early_stopping_callback = EarlyStopping(monitor="valid_loss",patience=1000, mode="min",verbose=True)
      callbacks = [checkpoint_callback_estoi, checkpoint_callback_valid_loss, checkpoint_callback_pesq, early_stopping_callback, checkpoint_callback_last, checkpoint_callback_si_sdr]
