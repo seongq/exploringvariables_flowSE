@@ -76,7 +76,7 @@ def evaluate_model(model, num_eval_files, inference_N=5):
             elif mode_ == "noisemean_xtplusy_divide_2": #v_theta((xt+y)/2)
                 xt = xt + dt *model(vect, (xt+Y)/2)
             elif mode_ == "noisemean_xt_y_t": # noisemean_xt_y_t v_theta (xt,y,t)
-                xt = xt + dt * model(vect, xt, y)
+                xt = xt + dt * model(vect, xt, Y)
             
         sample = xt
         
