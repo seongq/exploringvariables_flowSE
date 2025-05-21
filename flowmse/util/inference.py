@@ -51,6 +51,7 @@ def evaluate_model(model, num_eval_files, inference_N=5):
         sigma = model.ode._std(1)
         Y_plus_sigma_z = Y+sigma *z
         xt = x1
+        # z = z.to(device=Y.device)
         timesteps = torch.linspace(T_rev, t_eps, N, device=Y.device)
         for i in range(len(timesteps)):
             t = timesteps[i]
@@ -77,7 +78,16 @@ def evaluate_model(model, num_eval_files, inference_N=5):
                 xt = xt + dt *model(vect, (xt+Y)/2)
             elif mode_ == "noisemean_xt_y_t": # noisemean_xt_y_t v_theta (xt,y,t)
                 xt = xt + dt * model(vect, xt, Y)
-            
+            elif mode_ == "noisemean_xt_t: v_theta(xt,t)": # noisemean_xt_t: v_theta(xt,t) 
+                xt = xt + dt * model(vect, xt)
+            elif mode_ == "noisemean_t_times_y_plus_sigmaz_1minust_times_s": # "noisemean_t_times_y_plus_sigmaz_1minust_times_s": #": v_theta(t(y+sigma z), (1-t)s)"
+                first_variable = vect*(Y_plus_sigma_z) # t(y+sigma z)
+                second_variable = xt - first_variable # (1-t)s
+                xt = xt + dt * model(vect, first_variable, second_variable)
+            elif mode_ == "noisemean_xt_y_sigmaz": #v_theta(t,xt,y,sigmaz)
+                xt = xt + dt * model(vect, xt, Y, sigma * z)
+            elif mode_ == "noisemean_t_y": #v_theta(t,y)
+                xt = xt + dt * model(vect, Y)
         sample = xt
         
 

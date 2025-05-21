@@ -29,7 +29,7 @@ class VFModel(pl.LightningModule):
         parser.add_argument("--num_eval_files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training. Pass 0 to turn off (no checkpoints based on evaluation metrics will be generated).")
         parser.add_argument("--loss_type", type=str, default="mse", help="The type of loss function to use.")
         parser.add_argument("--loss_abs_exponent", type=float, default= 0.5,  help="magnitude transformation in the loss term")
-        parser.add_argument("--mode_", type=str, required=True, choices=("noisemean_xt_y_t", "noisemean_xtplusy_divide_2", "noisemean_xt_y_plus_sigmaz", "noisemean_xt_y","noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse","noisemean_y_plus_sigmaz","noisemean_xt_t"))
+        parser.add_argument("--mode_", type=str, required=True, choices=("noisemean_t_y","noisemean_xt_y_sigmaz", "noisemean_t_times_y_plus_sigmaz_1minust_times_s", "noisemean_xt_y_t", "noisemean_xtplusy_divide_2", "noisemean_xt_y_plus_sigmaz", "noisemean_xt_y","noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse","noisemean_y_plus_sigmaz","noisemean_xt_t"))
         return parser
     """
     model.step, inference, evaluation code 바꿀것
@@ -40,26 +40,11 @@ class VFModel(pl.LightningModule):
     noisemean_xt_y: v_theta(xt,y)
     noisemean_xt_y_plus_sigmaz: v_theta(xt,y+sigma z)   
     noisemean_xt_y_t: v_theta(xt,y,t)
-    
-    
-    noisemean_xtplusy_divde_2: v_theta((xt+y)/2) 
-    
     noisemean_xt_t: v_theta(xt,t)
-    noisemean_y_t: v_theta(y,t)
-    noisemean_y_plus_sigmaz_t: v_theta(y+sigma z, t)
-    noisemean_xt_y_t : v_theta(xt, y,t)
-    noisemean_xt_y_plus_sigma_z_t : v_theta(xt, y+sigma z , t)
-    noise_mean_(1-t)s_t(y+sigma z) : v_theta((1-t)s, t(y+sigma z))
-    noise_mean_(1-t)s_ty: v_theta((1-t)s, ty)
-    noise_mean_
+    noisemean_t_times_y_plus_sigmaz_1minust_times_s: v_theta(t(y+sigma z), (1-t)s)
     
-    noisemean_xt__ty_plus_sigmaz_1_ts : v_theta(t(y+sigma z) , (1-t) s)
-    noisemean_xt_t_timetrue: v_theta(xt,t)
-    noisemean_xt_ysigmaz_timefalse: v_theta(xt,y+sigma z)
-    noisemean_y_timetrue: v_theta(y,t)
-    noisemean_ysigmaz_timetrue: v_theta(y+sigmaz, t)
-    noisemean_y_sigmaz_timefalse: v_theta(y, sigma z)
-    noisemean_y_s: v_theta((1-t)s, ty)
+    
+    
     """
 
     def __init__(
@@ -103,6 +88,18 @@ class VFModel(pl.LightningModule):
             kwargs.update(conditional=False)
         elif self.mode_ == "noisemean_xt_y_t": # noisemean_xt_y_t v_theta (xt,y,t)
             kwargs.update(num_channels=4)
+            kwargs.update(conditional=True)
+        elif self.mode_ == "noisemean_xt_t: v_theta(xt,t)": #noisemean_xt_t: v_theta(xt,t) v_theta (xt,t)
+            kwargs.update(num_channels=2)
+            kwargs.update(conditional=True)
+        elif self.mode_ == "noisemean_t_times_y_plus_sigmaz_1minust_times_s": #": v_theta(t(y+sigma z), (1-t)s)"
+            kwargs.update(num_channels=4)
+            kwargs.update(conditional=False)
+        elif self.mode_ == "noisemean_xt_y_sigmaz": #v_theta(t,xt,y,sigmaz)
+            kwargs.update(num_channels=6)
+            kwargs.update(conditional=False)
+        elif self.mode_ == "noisemean_t_y": #v_theta(t,y)
+            kwargs.update(num_channels=2)
             kwargs.update(conditional=True)
         dnn_cls = BackboneRegistry.get_by_name(backbone)
         self.dnn = dnn_cls(**kwargs)        
@@ -217,6 +214,27 @@ class VFModel(pl.LightningModule):
             VECTORFIELD_origin = self(t,(xt+y)/2)
         elif self.mode_ == "noisemean_xt_y_t": # noisemean_xt_y_t v_theta (xt,y,t)
             VECTORFIELD_origin = self(t,xt,y)
+        elif self.mode_ == "noisemean_xt_t: v_theta(xt,t)": #noisemean_xt_t: v_theta(xt,t) v_\theta(xt,t)
+            VECTORFIELD_origin = self(t,xt)
+        elif self.mode_ == "noisemean_t_times_y_plus_sigmaz_1minust_times_s": #": v_theta(t(y+sigma z), (1-t)s)"
+            s = x0
+            vect = torch.ones(y.shape[0], device=y.device) * t
+            vect = vect[:,None,None,None]
+            
+            # print(t.shape)
+            # t = t[:, None, None, None]
+            # print(t.shape)
+            # print(vect.shape)
+            # print(y.shape)
+            # print(z.shape)
+            # print(s.shape)
+            VECTORFIELD_origin = self(t,vect*(y+SIGMA*z), (1-vect)*s)
+            
+        elif self.mode_ == "noisemean_xt_y_sigmaz": #v_theta(t,xt,y,sigmaz)
+            VECTORFIELD_origin = self(t,xt,y, SIGMA * z)
+            
+        elif self.mode_ == "noisemean_t_y": #v_theta(t,y)
+            VECTORFIELD_origin  = self(t,y)
         loss_original_flow = self._loss(VECTORFIELD_origin,condVF)
         
 
