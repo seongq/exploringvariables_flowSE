@@ -29,7 +29,7 @@ class VFModel(pl.LightningModule):
         parser.add_argument("--num_eval_files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training. Pass 0 to turn off (no checkpoints based on evaluation metrics will be generated).")
         parser.add_argument("--loss_type", type=str, default="mse", help="The type of loss function to use.")
         parser.add_argument("--loss_abs_exponent", type=float, default= 0.5,  help="magnitude transformation in the loss term")
-        parser.add_argument("--mode_", type=str, required=True, choices=("noisemean_t_y","noisemean_xt_y_sigmaz", "noisemean_t_times_y_plus_sigmaz_1minust_times_s", "noisemean_xt_y_t", "noisemean_xtplusy_divide_2", "noisemean_xt_y_plus_sigmaz", "noisemean_xt_y","noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse","noisemean_y_plus_sigmaz","noisemean_xt_t"))
+        parser.add_argument("--mode_", type=str, required=True, choices=("flowse_KD_enindg_without_t_sequential_update", "flowse_KDfromclean", "noisemean_xt_y_sigmaz_t", "noisemean_xt_y_yplussigmaz", "noisemean_t_y","noisemean_xt_y_sigmaz", "noisemean_t_times_y_plus_sigmaz_1minust_times_s", "noisemean_xt_y_t", "noisemean_xtplusy_divide_2", "noisemean_xt_y_plus_sigmaz", "noisemean_xt_y","noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse","noisemean_y_plus_sigmaz","noisemean_xt_t"))
         return parser
     """
     model.step, inference, evaluation code 바꿀것
@@ -89,20 +89,38 @@ class VFModel(pl.LightningModule):
         elif self.mode_ == "noisemean_xt_y_t": # noisemean_xt_y_t v_theta (xt,y,t)
             kwargs.update(num_channels=4)
             kwargs.update(conditional=True)
-        elif self.mode_ == "noisemean_xt_t: v_theta(xt,t)": #noisemean_xt_t: v_theta(xt,t) v_theta (xt,t)
+        elif self.mode_ == "noisemean_xt_t: v_theta(xt,t)": #noisemean_xt_t: v_theta (xt,t)
             kwargs.update(num_channels=2)
             kwargs.update(conditional=True)
         elif self.mode_ == "noisemean_t_times_y_plus_sigmaz_1minust_times_s": #": v_theta(t(y+sigma z), (1-t)s)"
             kwargs.update(num_channels=4)
             kwargs.update(conditional=False)
-        elif self.mode_ == "noisemean_xt_y_sigmaz": #v_theta(t,xt,y,sigmaz)
+        elif self.mode_ == "noisemean_xt_y_sigmaz": #v_theta(xt,y,sigmaz)
             kwargs.update(num_channels=6)
             kwargs.update(conditional=False)
         elif self.mode_ == "noisemean_t_y": #v_theta(t,y)
             kwargs.update(num_channels=2)
             kwargs.update(conditional=True)
+        elif self.mode_ == "noisemean_xt_y_yplussigmaz": #v_theta(xt,y,y+sigma z)
+            kwargs.update(num_channels=6)
+            kwargs.update(conditional=False)
+        elif self.mode_ == "noisemean_xt_y_sigmaz_t": #v_theta(t,xt,y,sigmaz)
+            kwargs.update(num_channels=6)
+            kwargs.update(conditional=True)
+        elif self.mode_ == "noisemean_xt_y_sigmaz_yplussigmaz_t": #v_theta(t,xt,y,y+sigmaz, sigmaz)
+            kwargs.update(num_channels=8)
+            kwargs.update(conditional=True)
+        elif self.mode_ =="flowse_KDfromclean":
+            kwargs.update(num_channels=4)
+            kwargs.update(conditional=True)
+        elif self.mode_ =="flowse_KD_enindg_without_t_sequential_update":
+            kwargs.update(num_channels=4)
+            kwargs.update(conditional=False)
+            self.automatic_optimization = False  # ★ 중요 ★
         dnn_cls = BackboneRegistry.get_by_name(backbone)
         self.dnn = dnn_cls(**kwargs)        
+        # for name, param in self.dnn.named_parameters():
+        #     print(name, param.requires_grad)
         ode_cls = ODERegistry.get_by_name(ode)
         # self.mode_condition = mode_condition
        
@@ -184,7 +202,7 @@ class VFModel(pl.LightningModule):
         loss = torch.mean(0.5*torch.sum(losses.reshape(losses.shape[0], -1), dim=-1))
         return loss
 
-    def _step(self, batch, batch_idx):
+    def _step(self, batch, batch_idx, step_num = 0):
         import random
         x0, y = batch
         rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * (self.T_rev-self.t_eps) +self.t_eps
@@ -230,11 +248,186 @@ class VFModel(pl.LightningModule):
             # print(s.shape)
             VECTORFIELD_origin = self(t,vect*(y+SIGMA*z), (1-vect)*s)
             
-        elif self.mode_ == "noisemean_xt_y_sigmaz": #v_theta(t,xt,y,sigmaz)
+        elif (self.mode_ == "noisemean_xt_y_sigmaz") or (self.mode_ == "noisemean_xt_y_sigmaz_t"): #v_theta(t,xt,y,sigmaz)
             VECTORFIELD_origin = self(t,xt,y, SIGMA * z)
             
         elif self.mode_ == "noisemean_t_y": #v_theta(t,y)
             VECTORFIELD_origin  = self(t,y)
+            
+        elif self.mode_ == "noisemean_xt_y_yplussigmaz": #v_theta(xt,y,y+sigma z)
+            VECTORFIELD_origin = self(t, xt, y, y+ SIGMA *z )
+            
+        elif self.mode_ == "noisemean_xt_y_sigmaz_yplussigmaz_t": #v_theta(t,xt,y,y+sigmaz, sigmaz)
+            VECTORFIELD_origin = self(t,xt,y,y+SIGMA*z, SIGMA*z)
+        elif self.mode_ == "flowse_KDfromclean":
+            VECTORFIELD_origin = self(t,xt,y)
+            with torch.no_grad():
+                VECTORFIELD_CLEAN = self(t,xt,x0)
+            loss_original_flow = self._loss(VECTORFIELD_origin, condVF)
+            loss_clean = self._loss(VECTORFIELD_CLEAN,VECTORFIELD_origin)
+            loss = loss_original_flow + loss_clean
+            
+            return loss
+                
+        elif self.mode_ =="flowse_KD_enindg_without_t_sequential_update":
+            # print(step_num)
+            x0, y = batch
+            
+            
+            if self.training:
+                if step_num == 0:
+                    rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * (self.T_rev-self.t_eps) +self.t_eps
+                    t = torch.min(rdm, torch.tensor(self.T_rev))
+                    mean, std = self.ode.marginal_prob(x0, t, y)
+                    z = torch.randn_like(x0)  #
+                    # SIGMA = self.ode._std(1)
+                    # print(SIGMA)
+                    sigmas = std[:, None, None, None]
+                    xt = mean + sigmas * z
+                    der_std = self.ode.der_std(t)
+                    der_mean = self.ode.der_mean(x0,t,y)
+                    condVF = der_std * z + der_mean
+
+                
+                    
+                    VECTORFIELD_t = self(t,xt,y)
+                    
+                    condVF_t = condVF
+                    loss = self._loss(VECTORFIELD_t, condVF_t)
+                    
+                
+                
+                
+                elif step_num == 1:
+                    
+                
+                    rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * torch.tensor(0) +self.t_eps
+                    t_eps = torch.min(rdm, torch.tensor(self.T_rev))
+                    mean, std = self.ode.marginal_prob(x0, t_eps, y)
+                    
+                    SIGMA = self.ode._std(1)
+                    # print(SIGMA)
+                    sigmas = std[:, None, None, None]
+                    xt_eps = mean + sigmas * z
+                    der_std = self.ode.der_std(t_eps)
+                    der_mean = self.ode.der_mean(x0,t_eps,y)
+                    condVF_t_eps = der_std * z + der_mean
+                    
+                    VECTORFIELD_t_eps = self(t_eps,xt_eps,y)
+                    loss = self._loss(VECTORFIELD_t_eps, condVF_t_eps)
+                    
+                    
+                
+                elif step_num == 2:
+                
+                    rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * torch.tensor(0) +self.T_rev
+                    t_1 = torch.min(rdm, torch.tensor(self.T_rev))
+                    mean, std = self.ode.marginal_prob(x0, t_1, y)
+                    # SIGMA = self.ode._std(1)
+                    # print(SIGMA)
+                    sigmas = std[:, None, None, None]
+                    xt_1 = mean + sigmas * z
+                    der_std = self.ode.der_std(t_1)
+                    der_mean = self.ode.der_mean(x0,t_1,y)
+                    condVF = der_std * z + der_mean
+                    
+                    VECTORFIELD_t_1 = self(t_1,xt_1,y)
+                    loss = self._loss(VECTORFIELD_t_1, condVF)
+                
+                
+                elif step_num ==3:
+                    rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * (self.T_rev-self.t_eps) +self.t_eps
+                    z = torch.randn_like(x0)  #
+                    
+                    
+                    
+                    t = torch.min(rdm, torch.tensor(self.T_rev))
+                    mean, std = self.ode.marginal_prob(x0, t, y)
+                    
+                    sigmas = std[:, None, None, None]
+                    xt = mean + sigmas * z
+                    
+                    VECTORFIELD_t = self(t,xt,y)
+                    
+                    
+                    
+                    
+                    t_eps = self.t_eps
+                
+                    rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * torch.tensor(0) +self.t_eps
+                    t_eps = torch.min(rdm, torch.tensor(self.T_rev))
+                    mean, std = self.ode.marginal_prob(x0, t_eps, y)
+                    
+                    sigmas = std[:, None, None, None]
+                    xt_eps = mean + sigmas * z
+                    
+                    
+                    VECTORFIELD_t_eps = self(t_eps,xt_eps,y).detach()
+                    
+                    
+                    
+                    
+                    rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * torch.tensor(0) +self.T_rev
+                    t_1 = torch.min(rdm, torch.tensor(self.T_rev))
+                    mean, std = self.ode.marginal_prob(x0, t_1, y)
+                    
+                    sigmas = std[:, None, None, None]
+                    xt_1 = mean + sigmas * z
+                    
+                    
+                    VECTORFIELD_t_1 = self(t_1,xt_1,y)
+                    
+                    loss = self._loss(VECTORFIELD_t_eps, VECTORFIELD_t)+self._loss(VECTORFIELD_t_eps, VECTORFIELD_t_1)
+            else:
+                rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * (self.T_rev-self.t_eps) +self.t_eps
+                z = torch.randn_like(x0)  #
+                
+                
+                
+                t = torch.min(rdm, torch.tensor(self.T_rev))
+                mean, std = self.ode.marginal_prob(x0, t, y)
+                
+                sigmas = std[:, None, None, None]
+                xt = mean + sigmas * z
+                
+                VECTORFIELD_t = self(t,xt,y)
+                
+                
+                
+                
+                t_eps = self.t_eps
+               
+                rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * torch.tensor(0) +self.t_eps
+                t_eps = torch.min(rdm, torch.tensor(self.T_rev))
+                mean, std = self.ode.marginal_prob(x0, t_eps, y)
+                
+                sigmas = std[:, None, None, None]
+                xt_eps = mean + sigmas * z
+                
+                
+                VECTORFIELD_t_eps = self(t_eps,xt_eps,y).detach()
+                
+                
+                
+                
+                rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * torch.tensor(0) +self.T_rev
+                t_1 = torch.min(rdm, torch.tensor(self.T_rev))
+                mean, std = self.ode.marginal_prob(x0, t_1, y)
+                
+                sigmas = std[:, None, None, None]
+                xt_1 = mean + sigmas * z
+                
+                
+                VECTORFIELD_t_1 = self(t_1,xt_1,y)
+                
+                loss = self._loss(VECTORFIELD_t_eps, VECTORFIELD_t)+self._loss(VECTORFIELD_t_eps, VECTORFIELD_t_1)
+            
+            
+            
+            
+            return loss
+            
+            
         loss_original_flow = self._loss(VECTORFIELD_origin,condVF)
         
 
@@ -242,9 +435,27 @@ class VFModel(pl.LightningModule):
         return loss
     
     def training_step(self, batch, batch_idx):
-        loss = self._step(batch, batch_idx)
-        self.log('train_loss', loss, on_step=True, on_epoch=True)
-        return loss
+        if self.mode_ == "flowse_KD_enindg_without_t_sequential_update":
+            opt = self.optimizers()  # Lightning이 제공하는 optimizer 핸들
+            n_inner_steps = 4        # 원하는 반복 횟수
+            total_loss = 0.0
+
+            for i in range(n_inner_steps):
+                loss = self._step(batch, batch_idx, step_num=i)  # step_index는 optional
+                opt.zero_grad()
+                self.manual_backward(loss)
+                opt.step()
+                self.ema.update(self.parameters())  # 선택적
+
+                self.log(f'train_loss_step_{i}', loss, on_step=True, prog_bar=True)
+                total_loss += loss.detach()
+
+            # self.log("train_loss", total_loss / n_inner_steps, on_step=False, on_epoch=True)
+            return total_loss
+        else:    
+            loss = self._step(batch, batch_idx)
+            self.log('train_loss', loss, on_step=True, on_epoch=True)
+            return loss
 
     def validation_step(self, batch, batch_idx):
         loss = self._step(batch, batch_idx)

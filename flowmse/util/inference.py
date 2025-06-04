@@ -84,10 +84,18 @@ def evaluate_model(model, num_eval_files, inference_N=5):
                 first_variable = vect*(Y_plus_sigma_z) # t(y+sigma z)
                 second_variable = xt - first_variable # (1-t)s
                 xt = xt + dt * model(vect, first_variable, second_variable)
-            elif mode_ == "noisemean_xt_y_sigmaz": #v_theta(t,xt,y,sigmaz)
+            elif (mode_ == "noisemean_xt_y_sigmaz") or (mode_ == "noisemean_xt_y_sigmaz_t"): #v_theta(t,xt,y,sigmaz)
                 xt = xt + dt * model(vect, xt, Y, sigma * z)
             elif mode_ == "noisemean_t_y": #v_theta(t,y)
                 xt = xt + dt * model(vect, Y)
+            elif mode_ == "noisemean_xt_y_yplussigmaz": #v_theta(xt,y,y+sigma z)
+                xt = xt + dt * model(vect, xt, Y, Y+sigma * z)
+            elif mode_ == "noisemean_xt_y_sigmaz_yplussigmaz_t": #v_theta(t,xt,y,y+sigmaz, sigmaz)
+                xt = xt + dt * model(vect, xt, Y, Y+sigma*z, sigma*z)
+            elif mode_ == "flowse_KDfromclean":
+                xt = xt + dt * model(vect, xt, Y)
+            elif mode_ == "flowse_KD_enindg_without_t_sequential_update":
+                xt = xt + dt * model(vect,xt,Y)
         sample = xt
         
 
