@@ -29,7 +29,7 @@ class VFModel(pl.LightningModule):
         parser.add_argument("--num_eval_files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training. Pass 0 to turn off (no checkpoints based on evaluation metrics will be generated).")
         parser.add_argument("--loss_type", type=str, default="mse", help="The type of loss function to use.")
         parser.add_argument("--loss_abs_exponent", type=float, default= 0.5,  help="magnitude transformation in the loss term")
-        parser.add_argument("--mode_", type=str, required=True, choices=("flowse_KD_enindg_without_t_sequential_update", "flowse_KDfromclean", "noisemean_xt_y_sigmaz_t", "noisemean_xt_y_yplussigmaz", "noisemean_t_y","noisemean_xt_y_sigmaz", "noisemean_t_times_y_plus_sigmaz_1minust_times_s", "noisemean_xt_y_t", "noisemean_xtplusy_divide_2", "noisemean_xt_y_plus_sigmaz", "noisemean_xt_y","noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse","noisemean_y_plus_sigmaz","noisemean_xt_t"))
+        parser.add_argument("--mode_", type=str, required=True, choices=("noisemean_direct_estimation_xt_y_t", "CTFSE_KDfromclean", "flowse_KD_enindg_without_t_sequential_update", "flowse_KDfromclean", "noisemean_xt_y_sigmaz_t", "noisemean_xt_y_yplussigmaz", "noisemean_t_y","noisemean_xt_y_sigmaz", "noisemean_t_times_y_plus_sigmaz_1minust_times_s", "noisemean_xt_y_t", "noisemean_xtplusy_divide_2", "noisemean_xt_y_plus_sigmaz", "noisemean_xt_y","noisemean_conditionfalse_timefalse", "noisemean_noxt_conditiony_timefalse","noisemean_y_plus_sigmaz","noisemean_xt_t"))
         return parser
     """
     model.step, inference, evaluation code 바꿀것
@@ -68,6 +68,10 @@ class VFModel(pl.LightningModule):
         if self.mode_ == "noisemean_conditionfalse_timefalse":
             kwargs.update(num_channels=2)
             kwargs.update(conditional=False)
+        elif self.mode_ == "noisemean_direct_estimation_xt_y_t":
+            kwargs.update(num_channels=4)
+            kwargs.update(conditional=True)   
+        
         elif self.mode_ == "noisemean_noxt_conditiony_timefalse":
             kwargs.update(num_channels=2)
             kwargs.update(conditional=False)
@@ -117,6 +121,9 @@ class VFModel(pl.LightningModule):
             kwargs.update(num_channels=4)
             kwargs.update(conditional=False)
             self.automatic_optimization = False  # ★ 중요 ★
+        elif self.mode_ =="CTFSE_KDfromclean":
+            kwargs.update(num_channels=4)
+            kwargs.update(conditional=True)
         dnn_cls = BackboneRegistry.get_by_name(backbone)
         self.dnn = dnn_cls(**kwargs)        
         # for name, param in self.dnn.named_parameters():
@@ -216,8 +223,63 @@ class VFModel(pl.LightningModule):
         der_std = self.ode.der_std(t)
         der_mean = self.ode.der_mean(x0,t,y)
         condVF = der_std * z + der_mean
+        
+        
+        
         if self.mode_ == "noisemean_conditionfalse_timefalse":
             VECTORFIELD_origin = self(t,xt) 
+        elif self.mode_ =="CTFSE_KDfromclean":
+            
+            s = x0
+            y = y  
+            
+            rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * (self.T_rev - self.t_eps) + self.t_eps        
+            t = torch.min(rdm, torch.tensor(self.T_rev))
+            mean, std = self.ode.marginal_prob(s, t, y)
+            z = torch.randn_like(s)  #
+            sigmas = std[:, None, None, None]
+            xt = mean + sigmas * z
+            der_std = self.ode.der_std(t)
+            der_mean = self.ode.der_mean(s,t,y)
+            condVF = der_std * z + der_mean    
+            VECTORFIELD_origin = self(t,xt,y)
+            
+            with torch.no_grad():
+                VECTOFIELD_origin_teacher = self(t,xt,s)
+            
+            
+            loss_original_flow = self._loss(VECTORFIELD_origin,condVF)
+            loss_original_flow_kd = self._loss(VECTORFIELD_origin, VECTOFIELD_origin_teacher)
+            
+            
+              
+            # print("none")
+            
+            x1, _ = self.ode.prior_sampling(y.shape,y)
+            ENHANCER = self(torch.ones(y.shape[0], device=y.device), x1,y)
+            ENHANCEMENT = x1 - ENHANCER
+            
+            loss_enh = self._loss(ENHANCEMENT,s)
+            
+            CONDITION = 0.5 * ENHANCEMENT + 0.5 * y
+            rdm = (1-torch.rand(x0.shape[0], device=x0.device)) * (self.T_rev - self.t_eps) + self.t_eps        
+            t = torch.min(rdm, torch.tensor(self.T_rev))
+            mean, std = self.ode.marginal_prob(s, t, ENHANCEMENT)
+            z = torch.randn_like(s)  #
+            sigmas = std[:, None, None, None]
+            xt = mean + sigmas * z
+            der_std = self.ode.der_std(t)
+            der_mean = self.ode.der_mean(s,t,ENHANCEMENT)
+            condVF = der_std * z + der_mean    
+            VECTORFIELD = self(t,xt,CONDITION)
+            loss_flow = self._loss(VECTORFIELD,condVF)
+            with torch.no_grad():
+                VECTORFIELD_teacher = self(t,xt,s)
+            loss_flow_kd = self._loss(VECTORFIELD,VECTORFIELD_teacher )
+            
+            
+            loss = loss_original_flow + loss_flow + loss_enh + loss_flow_kd + loss_original_flow_kd
+            return loss
         elif self.mode_ == "noisemean_noxt_conditiony_timefalse":
             VECTORFIELD_origin = self(t,y)
         elif self.mode_ == "noisemean_y_plus_sigmaz":
@@ -256,7 +318,11 @@ class VFModel(pl.LightningModule):
             
         elif self.mode_ == "noisemean_xt_y_yplussigmaz": #v_theta(xt,y,y+sigma z)
             VECTORFIELD_origin = self(t, xt, y, y+ SIGMA *z )
-            
+        elif self.mode_ == "noisemean_direct_estimation_xt_y_t": #s_theta(t,xt,y)
+            clean_estimated = self(t,xt,y)
+            loss = self._loss(clean_estimated, x0)
+            return loss
+        
         elif self.mode_ == "noisemean_xt_y_sigmaz_yplussigmaz_t": #v_theta(t,xt,y,y+sigmaz, sigmaz)
             VECTORFIELD_origin = self(t,xt,y,y+SIGMA*z, SIGMA*z)
         elif self.mode_ == "flowse_KDfromclean":

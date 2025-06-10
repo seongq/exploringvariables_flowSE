@@ -49,6 +49,8 @@ def evaluate_model(model, num_eval_files, inference_N=5):
         Y = pad_spec(Y)
         x1 ,z= model.ode.prior_sampling(Y.shape,Y)
         sigma = model.ode._std(1)
+        # sigma = sigma.to(Y.device)
+        z = z.to(Y.device)
         Y_plus_sigma_z = Y+sigma *z
         xt = x1
         # z = z.to(device=Y.device)
@@ -96,6 +98,10 @@ def evaluate_model(model, num_eval_files, inference_N=5):
                 xt = xt + dt * model(vect, xt, Y)
             elif mode_ == "flowse_KD_enindg_without_t_sequential_update":
                 xt = xt + dt * model(vect,xt,Y)
+            elif mode_ == "CTFSE_KDfromclean":
+                xt = xt + dt * model(vect, xt, Y)
+            elif mode_ == "noisemean_direct_estimation_xt_y_t": #s_theta(t,xt,y)
+                xt = xt + dt * (Y+sigma*z -model(vect,xt,Y))
         sample = xt
         
 

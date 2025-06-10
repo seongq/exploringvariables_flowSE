@@ -36,7 +36,7 @@ if __name__ == '__main__':
     parser.add_argument("--ckpt", type=str, help='Path to model checkpoint.')
     parser.add_argument("--N", type=int)
     parser.add_argument("--time_step_type", type=str, choices=('gerkmann', 'uniform'), default="gerkmann")
-
+    parser.add_argument("--startpoint_type", type=str, required=True, choices=('noise', 'mean'))
 
     args = parser.parse_args()
     N = args.N
@@ -84,7 +84,13 @@ if __name__ == '__main__':
     else:
         print("No match found")
     epoch_number = extract_epoch(checkpoint_file)
-    target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{model.mode_}_epoch_{epoch_number}_timestep_{time_step_type}_evaluationnumber_{N}/"
+    
+    if args.startpoint_type =="noise":
+        target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{model.mode_}_epoch_{epoch_number}_timestep_{time_step_type}_evaluationnumber_{N}/"
+    elif args.startpoint_type == "mean":
+        target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{model.mode_}_startpoint_{args.startpoint_type}epoch_{epoch_number}_timestep_{time_step_type}_evaluationnumber_{N}/"
+    
+    
     results_candidate_path = os.path.join(target_dir, "_avg_results.txt")
     if os.path.exists(results_candidate_path):  # 파일 존재 여부 확인
         print(f"파일이 존재하므로 프로그램을 종료합니다: {results_candidate_path}")
@@ -126,60 +132,86 @@ if __name__ == '__main__':
         Y = torch.unsqueeze(model._forward_transform(model._stft(y.cuda())), 0)
         Y = pad_spec(Y)
         Y = Y.cuda()
-        with torch.no_grad():
-            
-            xt, z = model.ode.prior_sampling(Y.shape, Y)
-            sigma = model.ode._std(1)
-            Y_plus_sigma_z = Y+sigma *z
-            xt = xt.to(Y.device)
-            if time_step_type=="gerkmann":
-                timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
-            elif time_step_type=="uniform":
-                timesteps = torch.linspace(1, 1/N, N, device=Y.device)
+        if mode_ == "CTFSE_KDfromclean":
+            with torch.no_grad():
+                xt, z = model.ode.prior_sampling(Y.shape, Y)
+                xt = xt.to(Y.device)
+                xt = xt - model(torch.ones(Y.shape[0], device=Y.device) , xt, Y)
+                ENHANCED = xt
+                CONDITION = 1/2 * (Y+ENHANCED)
+                xt, _ = model.ode.prior_sampling(Y.shape, ENHANCED)
+                if time_step_type=="gerkmann":
+                    timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
+                elif time_step_type=="uniform":
+                    timesteps = torch.linspace(1, 1/N, N, device=Y.device)
+                for i in range(len(timesteps)):
+                    t = timesteps[i]
+                    if i == len(timesteps)-1:
+                        dt = 0-t
+                    else:
+                        dt = timesteps[i+1]-t
+                    vect = torch.ones(Y.shape[0], device=Y.device)*t
+                    xt = xt + dt * model(vect,xt, CONDITION )
+        else:
+            with torch.no_grad():
                 
-            # print("N, ", N)
-            for i in range(len(timesteps)):
-                t = timesteps[i]
-                if i == len(timesteps)-1:
-                    dt = 0-t
-                else:
-                    dt = timesteps[i+1]-t
-                vect = torch.ones(Y.shape[0], device=Y.device)*t
-                if mode_ == "noisemean_conditionfalse_timefalse":
-                    xt = xt + dt * model(vect, xt)     
-                elif mode_ == "noisemean_noxt_conditiony_timefalse":
-                    xt = xt+dt*model(vect,Y)
-                elif mode_ == "noisemean_y_plus_sigmaz":
-                    xt = xt+dt*model(vect,Y_plus_sigma_z)
-                elif mode_ == "noisemean_xt_t": #noisemean_xt_t: v_theta(xt,t)
-                    xt = xt + dt * model(vect, xt)
-                elif mode_ == "noisemean_xt_y": #noisemean_xt_y: v_theta(xt,y)
-                    xt = xt + dt * model(vect, xt,Y)
-                elif mode_ == "noisemean_xt_y_plus_sigmaz": #v_theta(xt,y+sigma z)
-                    xt = xt + dt * model(vect, xt, Y_plus_sigma_z)
-                elif mode_ == "noisemean_xtplusy_divide_2": #v_theta((xt+y)/2)
-                    xt = xt + dt *model(vect, (xt+Y)/2)
-                elif mode_ == "noisemean_xt_y_t": # noisemean_xt_y_t v_theta (xt,y,t)
-                    xt = xt + dt * model(vect, xt, Y)
-                elif mode_ == "noisemean_xt_t: v_theta(xt,t)": # noisemean_xt_t: v_theta(xt,t) 
-                    xt = xt + dt * model(vect, xt)
-                elif mode_ == "noisemean_t_times_y_plus_sigmaz_1minust_times_s": # "noisemean_t_times_y_plus_sigmaz_1minust_times_s": #": v_theta(t(y+sigma z), (1-t)s)"
-                    first_variable = vect*(Y_plus_sigma_z) # t(y+sigma z)
-                    second_variable = xt - first_variable # (1-t)s
-                    xt = xt + dt * model(vect, first_variable, second_variable)
-                elif (mode_ == "noisemean_xt_y_sigmaz") or (mode_ == "noisemean_xt_y_sigmaz_t"): #v_theta(xt,y,sigmaz)
-                    xt = xt + dt * model(vect, xt, Y, sigma * z)
-                elif mode_ == "noisemean_t_y": #v_theta(t,y)
-                    xt = xt + dt * model(vect, Y)
-                elif mode_ == "noisemean_xt_y_yplussigmaz": #v_theta(xt,y,y+sigma z)
-                    xt = xt + dt * model(vect, xt, Y, Y+sigma * z)
-                elif mode_ == "noisemean_xt_y_sigmaz_yplussigmaz_t": #v_theta(t,xt,y,y+sigmaz, sigmaz)
-                    xt = xt + dt * model(vect, xt, Y, Y+sigma*z, sigma*z)
-                elif mode_ == "flowse_KDfromclean":
-                    xt = xt + dt * model(vect, xt, Y)
-                elif mode_ == "flowse_KD_enindg_without_t_sequential_update":
-                    xt = xt + dt * model(vect,xt,Y)
-        
+                xt, z = model.ode.prior_sampling(Y.shape, Y)
+                sigma = model.ode._std(1)
+                z = z.to(Y.device)
+                # sigma = sigma.to(Y.device)
+                Y_plus_sigma_z = Y+sigma *z
+                xt = xt.to(Y.device)
+                if time_step_type=="gerkmann":
+                    timesteps = torch.linspace(reverse_starting_point, reverse_end_point, N, device=Y.device)
+                elif time_step_type=="uniform":
+                    timesteps = torch.linspace(1, 1/N, N, device=Y.device)
+                    
+                # print("N, ", N)
+                for i in range(len(timesteps)):
+                    t = timesteps[i]
+                    if i == len(timesteps)-1:
+                        dt = 0-t
+                    else:
+                        dt = timesteps[i+1]-t
+                    vect = torch.ones(Y.shape[0], device=Y.device)*t
+                    if mode_ == "noisemean_conditionfalse_timefalse":
+                        xt = xt + dt * model(vect, xt)     
+                    elif mode_ == "noisemean_noxt_conditiony_timefalse":
+                        xt = xt+dt*model(vect,Y)
+                    elif mode_ == "noisemean_y_plus_sigmaz":
+                        xt = xt+dt*model(vect,Y_plus_sigma_z)
+                    elif mode_ == "noisemean_xt_t": #noisemean_xt_t: v_theta(xt,t)
+                        xt = xt + dt * model(vect, xt)
+                    elif mode_ == "noisemean_xt_y": #noisemean_xt_y: v_theta(xt,y)
+                        xt = xt + dt * model(vect, xt,Y)
+                    elif mode_ == "noisemean_xt_y_plus_sigmaz": #v_theta(xt,y+sigma z)
+                        xt = xt + dt * model(vect, xt, Y_plus_sigma_z)
+                    elif mode_ == "noisemean_xtplusy_divide_2": #v_theta((xt+y)/2)
+                        xt = xt + dt *model(vect, (xt+Y)/2)
+                    elif mode_ == "noisemean_xt_y_t": # noisemean_xt_y_t v_theta (xt,y,t)
+                        xt = xt + dt * model(vect, xt, Y)
+                    elif mode_ == "noisemean_xt_t: v_theta(xt,t)": # noisemean_xt_t: v_theta(xt,t) 
+                        xt = xt + dt * model(vect, xt)
+                    elif mode_ == "noisemean_t_times_y_plus_sigmaz_1minust_times_s": # "noisemean_t_times_y_plus_sigmaz_1minust_times_s": #": v_theta(t(y+sigma z), (1-t)s)"
+                        first_variable = vect*(Y_plus_sigma_z) # t(y+sigma z)
+                        second_variable = xt - first_variable # (1-t)s
+                        xt = xt + dt * model(vect, first_variable, second_variable)
+                    elif (mode_ == "noisemean_xt_y_sigmaz") or (mode_ == "noisemean_xt_y_sigmaz_t"): #v_theta(xt,y,sigmaz)
+                        xt = xt + dt * model(vect, xt, Y, sigma * z)
+                    elif mode_ == "noisemean_t_y": #v_theta(t,y)
+                        xt = xt + dt * model(vect, Y)
+                    elif mode_ == "noisemean_xt_y_yplussigmaz": #v_theta(xt,y,y+sigma z)
+                        xt = xt + dt * model(vect, xt, Y, Y+sigma * z)
+                    elif mode_ == "noisemean_xt_y_sigmaz_yplussigmaz_t": #v_theta(t,xt,y,y+sigmaz, sigmaz)
+                        xt = xt + dt * model(vect, xt, Y, Y+sigma*z, sigma*z)
+                    elif mode_ == "flowse_KDfromclean":
+                        xt = xt + dt * model(vect, xt, Y)
+                    elif mode_ == "flowse_KD_enindg_without_t_sequential_update":
+                        xt = xt + dt * model(vect,xt,Y)
+                    elif mode_ == "noisemean_direct_estimation_xt_y_t": #s_theta(t,xt,y)
+                        xt = xt + dt * (Y+sigma*z -model(vect,xt,Y))
+                
+                    
         sample = xt.clone()
         
         
@@ -232,8 +264,10 @@ if __name__ == '__main__':
         file.write("checkpoint file: {}\n".format(checkpoint_file))
         
         file.write("odesolver: {}\n".format(odesolver))
-       
-        file.write("N: {}\n".format(N))
+        if mode_ == "CTFSE_KDfromclean":
+            file.write("N: {}\n".format(N+1))
+        else: 
+            file.write("N: {}\n".format(N))
         
         file.write("Reverse starting point: {}\n".format(reverse_starting_point))
         file.write("Reverse end point: {}\n".format(reverse_end_point))
@@ -243,4 +277,5 @@ if __name__ == '__main__':
         # file.write("evaluationnumbers: {}\n".format(int_list_str))
         file.write("mode: {}\n".format(model.mode_))
         file.write('time_step: {}\n'.format(time_step_type))
+        file.write("startpoint_type: {}\n".format(args.startpoint_type))
         
