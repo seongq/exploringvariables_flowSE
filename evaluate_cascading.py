@@ -37,7 +37,7 @@ if __name__ == '__main__':
     parser.add_argument("--N", type=int)
     parser.add_argument("--time_step_type", type=str, choices=('gerkmann', 'uniform'), default="gerkmann")
     parser.add_argument("--startpoint_type", type=str, required=True, choices=('noise', 'mean'))
-
+    parser.add_argument("--secondflow_startpoint_type", type=str)
     args = parser.parse_args()
     N = args.N
     time_step_type = args.time_step_type
@@ -90,6 +90,8 @@ if __name__ == '__main__':
     elif args.startpoint_type == "mean":
         target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{model.mode_}_startpoint_{args.startpoint_type}epoch_{epoch_number}_timestep_{time_step_type}_evaluationnumber_{N}/"
     
+    if "CTFSE" in model.mode_:
+        target_dir = f"/workspace/results/condition_explore/{dataset_name}_mode_{model.mode_}_epoch_{epoch_number}_timestep_{time_step_type}_evaluationnumber_{N}/"
     
     results_candidate_path = os.path.join(target_dir, "_avg_results.txt")
     if os.path.exists(results_candidate_path):  # 파일 존재 여부 확인
@@ -154,10 +156,21 @@ if __name__ == '__main__':
                     xt = xt + dt * model(vect,xt, CONDITION )
         else:
             with torch.no_grad():
+                if args.startpoint_type == "mean":
+                    xt = Y
+                    _, z = model.ode.prior_sampling(Y.shape, Y)
+                elif args.startpoint_type == "noise":
+                    xt, z = model.ode.prior_sampling(Y.shape, Y)
+                    z = z.to(Y.device)
                 
-                xt, z = model.ode.prior_sampling(Y.shape, Y)
-                sigma = model.ode._std(1)
-                z = z.to(Y.device)
+                
+                if args.startpoint_type == "mean":
+                    sigma =0
+                    z = torch.zeros(z.shape)
+                    z = z.to(Y.device)
+                elif args.startpoint_type == "noise":
+                    sigma = model.ode._std(1)
+                
                 # sigma = sigma.to(Y.device)
                 Y_plus_sigma_z = Y+sigma *z
                 xt = xt.to(Y.device)
